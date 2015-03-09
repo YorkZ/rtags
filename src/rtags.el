@@ -3947,13 +3947,15 @@ other window instead of the current one."
          (bookmark (and (car idx) (format "RTags_%d" (car idx))))
          (window (selected-window)))
     (cond ((eq major-mode 'rtags-taglist-mode)
-           (rtags-goto-location (cdr (assoc line rtags-taglist-locations)) nil other-window)
+           (rtags-goto-location (cdr (assoc line rtags-taglist-locations))
+                                nil other-window)
            (when rtags-close-taglist-on-selection
              (rtags-close-taglist)))
           ((rtags-is-class-hierarchy-buffer)
            (save-excursion
              (goto-char (point-at-bol))
-             (let ((loc (and (looking-at "^[^\t]*\t\\(.*:[0-9]+:[0-9]+:\\)\t") (match-string 1))))
+             (let ((loc (and (looking-at "^[^\t]*\t\\(.*:[0-9]+:[0-9]+:\\)\t")
+                             (match-string 1))))
                (when loc
                  (rtags-goto-location loc nil other-window)))))
           ((string= (buffer-name) "*RTags Dependencies*")
@@ -3994,11 +3996,12 @@ other window instead of the current one."
            (let ((refloc (car (rtags-references-tree-current-location))))
              (if refloc
                  (rtags-goto-location refloc nil other-window)
-               (rtags-goto-location (buffer-substring-no-properties (save-excursion
-                                                                      (goto-char (point-at-bol))
-                                                                      (skip-chars-forward " ")
-                                                                      (point))
-                                                                    (point-at-eol)) nil other-window)))
+               (rtags-goto-location (buffer-substring-no-properties
+                                     (save-excursion
+                                       (goto-char (point-at-bol))
+                                       (skip-chars-forward " ")
+                                       (point))
+                                     (point-at-eol)) nil other-window)))
            (when bookmark
              (bookmark-set bookmark))))
     (if remove
