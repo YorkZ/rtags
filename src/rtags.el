@@ -926,10 +926,11 @@ to case differences."
                             "void" "u?int[0-9]+_t" "bool" "wchar_t" "std::string" "std::mutex"))
 
 (defvar rtags-font-lock-keywords
-  `((,"^\\(.*?:[0-9]+:[0-9]+:\\).*$"
+  `((,"^\\(.*?:\\)$"
      (1 font-lock-string-face))
-    (,"^\\([A-Za-z0-9/._-]*\\)$"
-     (1 font-lock-string-face))
+    (,"^\\([0-9]+:[0-9]+:\\)\\(.*\\)$"
+     (1 font-lock-string-face)
+     (2 font-lock-function-name-face))
     ;; (,(concat "^" rtags-verbose-results-delimiter "$")
     ;;  (1 font-lock-builtin-face))
     (,"^[ \t]+\\(.*\\)$"
@@ -1103,6 +1104,17 @@ to case differences."
                 (file (and install-path (concat install-path "/rtags-" rtags-package-version "/bin/" exe))))
            (and file (file-executable-p file) file)))
         (t (executable-find exe))))
+
+(defun rtags-find-project-root (file)
+  "Return project root of FILE."
+  (with-temp-buffer
+    (rtags-call-rc "--find-project-root" file)
+    (goto-char (point-min))
+    (if (looking-at
+         "findProjectRoot\\s-*\\[.*?\\]\\s-*=>\\s-*\\[\\(.*?\\)\\]")
+        (match-string-no-properties 1)
+      (message "Error: Incompatible \"rc --find-project-root\" output")
+      nil)))
 
 (defun rtags-remove-keyword-params (seq)
   (when seq
@@ -3718,6 +3730,40 @@ of diagnostics count"
 (defun rtags-has-filemanager (&optional buffer)
   (rtags-buffer-status buffer))
 
+(defun rtags-prettify-results ()
+  "Prettify result buffer (current buffer."
+  (let ((results
+         (sort
+          (mapcar
+           (lambda (line)
+             (string-match "\\(.*?\\):\\([0-9]+\\):\\([0-9]+\\):\\(.*\\)" line)
+             (list (match-string 1 line)                    ; file name
+                   (string-to-number (match-string 2 line)) ; line
+                   (string-to-number (match-string 3 line)) ; col
+                   (match-string 4 line)                    ; contents
+                   ))
+           (split-string (buffer-string) "\n" 'omit-nulls))
+          (lambda (l r)
+            (or (string< (nth 0 l) (nth 0 r)) ; sort on file name
+                (and (string= (nth 0 l) (nth 0 r))  ; same file name
+                     (or (< (nth 1 l) (nth 1 r)) ; sort on line number
+                         (and (= (nth 1 l) (nth 1 r)) ; same line number
+                              (< (nth 2 l) (nth 2 r)) ; sort on col number
+                              )))))))
+        current-file)
+    (erase-buffer)
+    (cl-dolist (result results)
+      (let ((file (nth 0 result))
+            (line (nth 1 result))
+            (col (nth 2 result)))
+        (unless (string= file current-file)
+          (setq current-file file)
+          (insert (abbreviate-file-name file) ":\n"))
+        (insert (format "%d:%d:%s\n" line col (nth 3 result)))
+        (put-text-property (line-beginning-position 0) (line-end-position 0)
+                           'location (list file line col))))
+    (goto-char (point-min))))
+
 (defun rtags-delete-rtags-windows ()
   (let* ((windows (window-list))
          (count (length windows)))
@@ -3795,27 +3841,39 @@ other window instead of the current one."
            (rtags-goto-location string nil other-window)
            t))
         (t
-         (rtags-format-results)
-         (unless quiet
-           (message "RTags: Found %d locations."
-                    (count-lines (point-min) (point-max))))
-         ;; Optionally jump to first result and open results buffer
-         (when (and rtags-popup-results-buffer
-                    (eq rtags-display-result-backend 'default))
-           (rtags-switch-to-buffer rtags-buffer-name
-                                   rtags-results-buffer-other-window)
-           (shrink-window-if-larger-than-buffer))
-         (cond ((eq rtags-display-result-backend 'default)
-                (when (and rtags-jump-to-first-match (not noautojump))
-                  (if rtags-popup-results-buffer
-                      (rtags-select-other-window)
-                    (rtags-select other-window))))
-               ((eq rtags-display-result-backend 'helm)
-                (require 'helm-rtags)
-                (helm :sources (create-helm-rtags-source token)))
-               ((eq rtags-display-result-backend 'ivy)
-                (require 'ivy-rtags)
-                (ivy-rtags-read)))
+         (if (eq rtags-display-result-backend 'default)
+             (progn
+               (rtags-switch-to-buffer rtags-buffer-name t)
+               (goto-char (point-max))
+               (let ((project-root (rtags-find-project-root path)))
+                 (when project-root
+                   (setq default-directory project-root)))
+               (if (= (point-at-bol) (point-max))
+                   (delete-char -1))
+               (rtags-prettify-results)
+               (rtags-mode)
+               (when path
+                 (setq rtags-current-file path))
+               (when (and rtags-jump-to-first-match (not noautojump))
+                 (if rtags-popup-results-buffer
+                     (rtags-select-other-window)
+                   (rtags-select other-window))))
+           (rtags-format-results)
+           (unless quiet
+             (message "RTags: Found %d locations."
+                      (count-lines (point-min) (point-max))))
+           ;; Optionally jump to first result and open results buffer
+           (when (and rtags-popup-results-buffer
+                      (eq rtags-display-result-backend 'default))
+             (rtags-switch-to-buffer rtags-buffer-name
+                                     rtags-results-buffer-other-window)
+             (shrink-window-if-larger-than-buffer))
+           (cond ((eq rtags-display-result-backend 'helm)
+                  (require 'helm-rtags)
+                  (helm :sources (create-helm-rtags-source token)))
+                 ((eq rtags-display-result-backend 'ivy)
+                  (require 'ivy-rtags)
+                  (ivy-rtags-read))))
          t)))
 
 (defun rtags-filename-complete (string predicate code)
@@ -3990,35 +4048,12 @@ other window instead of the current one."
                                                             (point-at-eol)))))
              (unless (string= "->" path)
                (rtags-goto-location path))))
-          ((string= (buffer-name) "*RTags Location Stack*")
-           (let ((index (- (length rtags-location-stack) line)))
-             (setq rtags-location-stack-index index)
-             (rtags-goto-location (nth rtags-location-stack-index rtags-location-stack) t other-window t)
-             (rtags-location-stack-visualize-update)))
-          ((and (car idx)
-                (>= rtags-buffer-bookmarks (car idx))
-                (member bookmark (rtags-bookmark-all-names)))
-           (when other-window
-             (when (= (length (window-list)) 1)
-               (funcall rtags-split-window-function))
-             (funcall rtags-other-window-function))
-           (let ((switch-to-buffer-preserve-window-point nil)) ;; this can mess up bookmarks
-             (bookmark-jump bookmark))
-           (rtags-location-stack-push))
           (t
-           (when (cdr idx)
-             (goto-char (cdr idx)))
-           (let ((refloc (car (rtags-references-tree-current-location))))
-             (if refloc
-                 (rtags-goto-location refloc nil other-window)
-               (rtags-goto-location (buffer-substring-no-properties
-                                     (save-excursion
-                                       (goto-char (point-at-bol))
-                                       (skip-chars-forward " ")
-                                       (point))
-                                     (point-at-eol)) nil other-window)))
-           (when bookmark
-             (bookmark-set bookmark))))
+           (let ((location (get-text-property (point) 'location)))
+             (rtags-find-file-or-buffer (nth 0 location) other-window)
+             (run-hooks rtags-after-find-file-hook)
+             (rtags-goto-line-col (nth 1 location) (nth 2 location))
+             (rtags-location-stack-push))))
     (if remove
         (rtags-delete-rtags-windows)
       (when show
