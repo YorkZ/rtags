@@ -1108,12 +1108,12 @@ to case differences."
 (defun rtags-find-project-root (file)
   "Return project root of FILE."
   (with-temp-buffer
-    (rtags-call-rc "--find-project-build-root" file)
+    (rtags-call-rc "--find-project-root" file)
     (goto-char (point-min))
     (if (looking-at
          "findProjectRoot\\s-*\\[.*?\\]\\s-*=>\\s-*\\[\\(.*?\\)\\]")
         (match-string-no-properties 1)
-      (message "Error: Incompatible \"rc --find-project-build-root\" output")
+      (message "Error: Incompatible \"rc --find-project-root\" output")
       nil)))
 
 (defun rtags-remove-keyword-params (seq)
