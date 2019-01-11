@@ -3832,7 +3832,7 @@ other window instead of the current one."
                (goto-char (point-max))
                (let ((project-root (rtags-find-project-root path)))
                  (when project-root
-                   (setq default-directory project-root)))
+                   (setq default-directory (rtags-trampify project-root))))
                (if (= (point-at-bol) (point-max))
                    (delete-char -1))
                (rtags-prettify-results)
