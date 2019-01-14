@@ -1291,6 +1291,7 @@ to only call this when `rtags-socket-address' is defined.
                              silent
                              silent-query
                              &allow-other-keys)
+  (hack-dir-local-variables-non-file-buffer)
   (save-excursion
     (let ((rc (rtags-executable-find rtags-rc-binary-name))
           (tempfile))
