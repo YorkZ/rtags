@@ -2767,7 +2767,6 @@ If called with prefix, open first match in other window"
               (buffer (get-buffer rtags-buffer-name)))
           (when (and buffer
                      (eq (buffer-local-value 'rtags-results-buffer-type buffer) 'find-symbol-at-point))
-            (rtags-delete-rtags-windows)
             (kill-buffer buffer))
           (cond ((= (cdr results) 0) nil)
                 ((= (cdr results) 1)
@@ -2776,7 +2775,6 @@ If called with prefix, open first match in other window"
                    (goto-char (point-min))
                    (rtags-handle-results-buffer tagname nil nil fn otherwindow 'find-symbol-at-point t)))
                 (t
-                 (rtags-delete-rtags-windows)
                  (with-current-buffer (rtags-get-buffer)
                    (insert (car results))
                    (goto-char (point-min))
@@ -2796,7 +2794,6 @@ treated as references to the referenced symbol."
         (tagname (or (rtags-current-symbol) (rtags-current-token)))
         (pathfilter (and (numberp prefix) (rtags-buffer-file-name))))
     (when (or (not (rtags-called-interactively-p)) (rtags-sandbox-id-matches))
-      (rtags-delete-rtags-windows)
       (rtags-location-stack-push)
       (let ((arg (rtags-current-location))
             (fn (rtags-buffer-file-name)))
