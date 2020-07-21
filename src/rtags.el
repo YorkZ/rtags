@@ -2366,7 +2366,24 @@ instead of file from `current-buffer'.
 
 (defvar rtags-symbol-history nil)
 
+(defcustom rtags-sysroot ""
+  "Sysroot to prepend to a non-home path."
+  :type 'string
+  :safe 'stringp)
+
+(defun rtags-map-system-file (file)
+  (let ((file (expand-file-name file)))
+    (if (and (equal file (abbreviate-file-name file))
+             ;; FILE not in HOME directory
+             (progn
+               (hack-dir-local-variables-non-file-buffer)
+               (not (string-prefix-p rtags-sysroot file))))
+        ;; FILE hasn't been prefixed with sysroot yet
+        (concat rtags-sysroot file)
+      file)))
+
 (defun rtags-find-file-or-buffer (file-or-buffer &optional other-window)
+  (setq file-or-buffer (rtags-map-system-file file-or-buffer))
   (if (file-exists-p file-or-buffer)
       (if other-window
           (find-file-other-window file-or-buffer)
