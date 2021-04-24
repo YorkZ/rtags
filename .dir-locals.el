@@ -2,7 +2,8 @@
 ;;; For more information see (info "(emacs) Directory Variables")
 
 ((nil
-  (indent-tabs-mode))
+  (indent-tabs-mode)
+  (rtags-socket-file . "/var/.rtags/rtags/rdm"))
  (yaml-mode
   (yaml-indent-offset . 2))
  (c++-mode
